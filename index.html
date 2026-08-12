@@ -786,9 +786,10 @@ body.density-compact .nav-item{padding:7px 10px;}
 
 <div class="modal-overlay" id="week-slot-modal"><div class="modal" style="max-width:380px;">
   <h2 id="wsm-title">Adicionar neste horário</h2>
-  <div class="field"><label>Tipo de aula</label><select id="wsm-type"><option value="extra">Aula extra (aluno já cadastrado)</option><option value="avulsa">Aula avulsa (sem recorrência)</option><option value="trial">Aula experimental (sem cobrança)</option><option value="makeup">Reposição de falta</option></select></div>
-  <div class="field"><label id="wsm-student-lbl">Aluno</label><select id="wsm-student"></select></div>
+  <div class="field"><label>Tipo de aula</label><select id="wsm-type"><option value="extra">Aula extra (aluno já cadastrado)</option><option value="avulsa">Aula avulsa (sem recorrência)</option><option value="trial">Aula experimental (sem cobrança)</option><option value="makeup">Reposição de falta</option><option value="move">Mudar dia/horário de uma aula (só esta semana)</option></select></div>
+  <div class="field" id="wsm-student-wrap"><label id="wsm-student-lbl">Aluno</label><select id="wsm-student"></select></div>
   <div class="field" id="wsm-makeup-field" style="display:none;"><label>A qual falta esta reposição se refere?</label><select id="wsm-makeup-abs"></select></div>
+  <div class="field" id="wsm-move-field" style="display:none;"><label>Qual aula mover pra cá?</label><select id="wsm-move-select"></select><p style="font-size:11px;color:var(--inks);margin:4px 0 0;">Vale só nesta semana — nas semanas seguintes a aula volta pro dia/horário normal.</p></div>
   <button class="btn sec" id="wsm-extra-btn" style="width:100%;margin-bottom:14px;">Agendar aula extra</button>
   <p style="font-size:12px;color:var(--inks);text-align:center;margin:0 0 10px;">— ou —</p>
   <button class="btn" id="wsm-newstudent-btn" style="width:100%;margin-bottom:14px;">+ Cadastrar aluno novo neste horário</button>
@@ -2189,6 +2190,61 @@ function openWeekSlotChoice(day,time,dateKey){
   onWsmTypeCh();
   document.getElementById('week-slot-modal').classList.add('open');
 }
+function weekLessonCandidates(targetDateKey){
+  var d=pd(targetDateKey);
+  var dow=(d.getDay()+6)%7;
+  var monday=new Date(d);
+  monday.setDate(monday.getDate()-dow);
+  var out=[];
+  data.students.filter(isActive).forEach(function(s){
+    for(var i=0;i<7;i++){
+      var dt=new Date(monday);
+      dt.setDate(dt.getDate()+i);
+      var key=dk(dt);
+      if(key===targetDateKey){continue;}
+      if(occursOn(s,dt)){
+        out.push({studentId:s.id,name:s.name,origKey:key,origTime:occTime(s,dt),dayLabel:DAYF[dt.getDay()]});
+      }
+    }
+  });
+  out.sort(function(a,b){return a.origKey.localeCompare(b.origKey)||a.name.localeCompare(b.name);});
+  return out;
+}
+function populateWsmMoveSelect(){
+  var sel=document.getElementById('wsm-move-select');
+  sel.innerHTML='';
+  var cands=weekLessonCandidates(weekSlotCtx.dateKey);
+  if(!cands.length){
+    var o=document.createElement('option');
+    o.value='';o.textContent='Nenhuma aula marcada nesta semana pra mover';
+    sel.appendChild(o);
+    return;
+  }
+  cands.forEach(function(c){
+    var o=document.createElement('option');
+    o.value=c.studentId+'|'+c.origKey;
+    o.textContent=c.name+' — '+c.dayLabel+' '+c.origTime;
+    sel.appendChild(o);
+  });
+}
+function saveWeekMove(){
+  var val=document.getElementById('wsm-move-select').value;
+  if(!val){toast('Nenhuma aula selecionada');return;}
+  var parts=val.split('|');
+  var sid=parts[0];
+  var orig=parts[1];
+  var s=gS(sid);
+  if(!s){toast('Aluno não encontrado');return;}
+  var date=weekSlotCtx.dateKey;
+  var time=weekSlotCtx.time;
+  if(!warnIfConflict(date,time,s.duration||60,'occ_'+sid+'_'+date)){return;}
+  if(!s.reschedules){s.reschedules={};}
+  s.reschedules[orig]={newDate:date,newTime:time,note:''};
+  saveData();
+  closeM('week-slot-modal');
+  toastUndo(s.name+': aula movida pra '+fdd(date));
+  renderCalendar();renderDashboard();renderDaily();
+}
 function populateWsmMakeupAbs(){
   var sid=document.getElementById('wsm-student').value;
   var sel=document.getElementById('wsm-makeup-abs');
@@ -2212,15 +2268,27 @@ function onWsmTypeCh(){
   var lbl=document.getElementById('wsm-student-lbl');
   var btn=document.getElementById('wsm-extra-btn');
   var mkField=document.getElementById('wsm-makeup-field');
-  if(type==='makeup'){
+  var moveField=document.getElementById('wsm-move-field');
+  var studentWrap=document.getElementById('wsm-student-wrap');
+  if(type==='move'){
+    studentWrap.style.display='none';
+    mkField.style.display='none';
+    moveField.style.display='';
+    btn.textContent='Mover aula pra cá';
+    populateWsmMoveSelect();
+  }else if(type==='makeup'){
+    studentWrap.style.display='';
     lbl.textContent='Aluno que está repondo';
     btn.textContent='Agendar reposição';
     mkField.style.display='';
+    moveField.style.display='none';
     populateWsmMakeupAbs();
   }else{
+    studentWrap.style.display='';
     lbl.textContent='Aluno';
     btn.textContent=type==='avulsa'?'Agendar aula avulsa':(type==='trial'?'Agendar aula experimental':'Agendar aula extra');
     mkField.style.display='none';
+    moveField.style.display='none';
   }
 }
 function exportWeekViewPDF(){
@@ -6622,9 +6690,13 @@ function attachEventListeners(){
   document.getElementById('cac-changeday-btn').addEventListener('click',function(){closeM('cal-add-choice-modal');openCalChangeDayModal(pendingAddKey,pendingAddStudent);});
   document.getElementById('cac-cancel-btn').addEventListener('click',function(){closeM('cal-add-choice-modal');});
   document.getElementById('wsm-extra-btn').addEventListener('click',function(){
+    var type=document.getElementById('wsm-type').value;
+    if(type==='move'){
+      saveWeekMove();
+      return;
+    }
     var sid=document.getElementById('wsm-student').value;
     if(!sid){toast('Cadastre um aluno primeiro');return;}
-    var type=document.getElementById('wsm-type').value;
     if(type==='makeup'){
       var absKey=document.getElementById('wsm-makeup-abs').value;
       if(!absKey){toast('Não há falta pendente para repor');return;}
