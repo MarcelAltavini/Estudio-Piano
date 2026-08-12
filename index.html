@@ -1330,11 +1330,35 @@ function occursOn2(s,dt){
 }
 function occTime(s,dt){
   var key=dk(dt);
+  if(isLD(s,dt)&&!(s.exclusions&&s.exclusions[key])&&!(s.reschedules&&s.reschedules[key])){
+    return slotT(s,dt);
+  }
   if(s.reschedules){
     var mk=Object.keys(s.reschedules).find(function(k){return s.reschedules[k].newDate===key;});
     if(mk){return s.reschedules[mk].newTime||slotT(s,dt);}
   }
   return slotT(s,dt);
+}
+function hasNaturalOccurrence(s,dt){
+  var key=dk(dt);
+  if(s.trackingStartDate&&key<s.trackingStartDate){return false;}
+  if(s.status==='inactive'&&s.inactiveFromMonth){
+    var mkc=dt.getFullYear()+'-'+pad(dt.getMonth()+1);
+    if(mkc>=s.inactiveFromMonth){return false;}
+  }
+  if(s.exclusions&&s.exclusions[key]){return false;}
+  if(s.reschedules&&s.reschedules[key]){return false;}
+  return isLD(s,dt);
+}
+function incomingMoves(s,dateKey){
+  var out=[];
+  if(!s.reschedules){return out;}
+  Object.keys(s.reschedules).forEach(function(k){
+    if(s.reschedules[k].newDate===dateKey){
+      out.push({origKey:k,newTime:s.reschedules[k].newTime||'',note:s.reschedules[k].note||''});
+    }
+  });
+  return out;
 }
 function fullMonthLessonCount(s,y,mo){
   var dim=new Date(y,mo+1,0).getDate();
@@ -1813,6 +1837,11 @@ function renderDashboard(){
   active.forEach(function(s){
     if(occursOn(s,ref)){entries.push({student:s,time:occTime(s,ref),type:'regular'});}
     if(occursOn2(s,ref)){entries.push({student:s,time:s.secondLesson.time||'',type:'regular2'});}
+    if(hasNaturalOccurrence(s,ref)){
+      incomingMoves(s,refKey).forEach(function(mv){
+        entries.push({student:s,time:mv.newTime||occTime(s,ref),type:'regular_moved',origKey:mv.origKey});
+      });
+    }
   });
   (data.schedExtras||[]).filter(function(e){return !e.done&&e.date===refKey;}).forEach(function(e){
     var s=exStudentObj(e);
@@ -1850,7 +1879,7 @@ function renderDashboard(){
   list.innerHTML='';
   entries.forEach(function(en,idx){
     var s=en.student;
-    var key=refKey;
+    var key=en.origKey||refKey;
     var row=document.createElement('div');
     row.className='row';
     var tagHtml='';
@@ -1861,11 +1890,13 @@ function renderDashboard(){
     else if(en.type==='makeup'){tagHtml=' <span class="tag gold" style="font-size:10px;">Reposição</span>';}
     else if(en.type==='makeup-done'){tagHtml=' <span class="tag ok" style="font-size:10px;">Reposição dada</span>';}
     else if(en.type==='regular2'){tagHtml=' <span class="tag gold" style="font-size:10px;">2ª aula</span>';}
+    else if(en.type==='regular_moved'){tagHtml=' <span class="tag gold" style="font-size:10px;">movida</span>';}
     var holderId='da-'+idx;
     var rm2Text;
     if(en.type==='makeup'){rm2Text=(en.time||'—')+' · repondo falta de '+fdd(en.absDate);}
     else if(en.type==='makeup-done'){rm2Text='Repôs a falta de '+fdd(en.absDate)+(en.time?' · horário previsto '+en.time:'');}
     else if(en.type==='regular2'){var dur2p=(s.attendance2[refKey]&&s.attendance2[refKey].duration)||s.secondLesson.duration||s.duration;rm2Text=(en.time||'—')+' · '+dur2p+'min · '+priceLabel(s);}
+    else if(en.type==='regular_moved'){var durMp=(s.attendance[key]&&s.attendance[key].duration)||s.duration;rm2Text=(en.time||'—')+' · '+durMp+'min · '+priceLabel(s)+' · movida de '+fdd(en.origKey);}
     else if(en.type==='extra'){rm2Text=(en.time||'—')+' · '+(en.duration||s.duration)+'min · '+exPriceLabel(en.kind,en.price,s.price);}
     else{var dur1p=(s.attendance[refKey]&&s.attendance[refKey].duration)||s.duration;rm2Text=(en.time||'—')+' · '+dur1p+'min · '+priceLabel(s);}
     row.innerHTML='<div class="rm">'+avEl(s)+'<div><div class="rn">'+s.name+tagHtml+'</div><div class="rm2">'+rm2Text+'</div></div></div><div class="ra" id="'+holderId+'"></div>';
@@ -2359,6 +2390,12 @@ function renderCalendarWeek(){
         var rec2=s.attendance2[dKey];
         entries.push({student:s,time:s.secondLesson.time||'',duration:s.secondLesson.duration||s.duration||60,cls:'gold',tag:'2ª',colorKey:s.id+'_2_'+dt.getDay(),type:rec2?rec2.status:'sched',key:dKey,isSecond:true});
       }
+      if(hasNaturalOccurrence(s,dt)){
+        incomingMoves(s,dKey).forEach(function(mv){
+          var recMv=s.attendance[mv.origKey];
+          entries.push({student:s,time:mv.newTime||occTime(s,dt),duration:s.duration||60,cls:'other',tag:'movida',colorKey:s.id+'_mv_'+mv.origKey,type:recMv?recMv.status:'sched',key:mv.origKey,isSecond:false});
+        });
+      }
     });
     (data.schedExtras||[]).filter(function(e){return e.date===dKey;}).forEach(function(e){
       var s=exStudentObj(e);
@@ -2523,6 +2560,12 @@ function renderCalendar(){
           addEv(k,{type:'sched',name:s.name.split(' ')[0]+' (2ª)',time:s.secondLesson.time||'',studentId:s.id,stype:s.studentType,isSecond:true});
         }
       }
+      if(hasNaturalOccurrence(s,dt)){
+        incomingMoves(s,k).forEach(function(mv){
+          var recMv=s.attendance[mv.origKey];
+          addEv(k,{type:recMv?recMv.status:'sched',name:s.name.split(' ')[0]+' (movida)',time:mv.newTime||occTime(s,dt),studentId:s.id,stype:s.studentType,origKeyMv:mv.origKey});
+        });
+      }
     }
   });
   (data.schedExtras||[]).filter(function(e){
@@ -2598,6 +2641,12 @@ function getEvMapForKey(key){
     }else if(occursOn(s,dt)){
       evs.push({type:'sched',name:s.name.split(' ')[0],time:occTime(s,dt),studentId:s.id,stype:s.studentType});
     }
+    if(hasNaturalOccurrence(s,dt)){
+      incomingMoves(s,key).forEach(function(mv){
+        var recMv=s.attendance[mv.origKey];
+        evs.push({type:recMv?recMv.status:'sched',name:s.name.split(' ')[0]+' (movida)',time:mv.newTime||occTime(s,dt),studentId:s.id,stype:s.studentType,origKeyMv:mv.origKey});
+      });
+    }
   });
   (data.schedExtras||[]).filter(function(e){return !e.done&&e.date===key;}).forEach(function(e){
     var s=exStudentObj(e);
@@ -2646,14 +2695,14 @@ function showCalDetail(key){
     if(e.studentId){
       left.addEventListener('click',(function(sid){return function(){closeM('cal-det-modal');openStu(sid);};})(e.studentId));
     }else{
-      left.addEventListener('click',(function(ev,k){return function(){openCalAction(ev,k);};})(e,key));
+      left.addEventListener('click',(function(ev,k){return function(){openCalAction(ev,k);};})(e,e.origKeyMv||key));
     }
     var badge=document.createElement('div');
     badge.className='cal-ev '+cls;
     badge.style.cssText='padding:3px 8px;border-radius:99px;cursor:pointer;flex-shrink:0;';
     badge.title='Editar ou excluir';
     badge.textContent=lbl;
-    badge.addEventListener('click',(function(ev,k){return function(){openCalAction(ev,k);};})(e,key));
+    badge.addEventListener('click',(function(ev,k){return function(){openCalAction(ev,k);};})(e,e.origKeyMv||key));
     row.appendChild(left);
     row.appendChild(badge);
     c.appendChild(row);
@@ -6412,6 +6461,11 @@ function renderDaily(){
   data.students.filter(function(s){return isActive(s)&&occursOn2(s,dt);}).forEach(function(s){
     dayEntries.push({student:s,time:s.secondLesson.time||'',type:'regular2'});
   });
+  data.students.filter(function(s){return isActive(s)&&hasNaturalOccurrence(s,dt);}).forEach(function(s){
+    incomingMoves(s,dailyDt).forEach(function(mv){
+      dayEntries.push({student:s,time:mv.newTime||occTime(s,dt),type:'regular_moved',origKey:mv.origKey});
+    });
+  });
   doneMKsOnDate(dailyDt).forEach(function(d){
     if(isActive(d.student)){dayEntries.push({student:d.student,time:d.time,type:'makeup-done',absDate:d.absDate});}
   });
@@ -6442,6 +6496,10 @@ function renderDaily(){
         tagHtml=' <span class="tag gold" style="font-size:10px;">2ª aula</span>';
         var dur2d=(s.attendance2[dailyDt]&&s.attendance2[dailyDt].duration)||s.secondLesson.duration||s.duration;
         rm2Text=(s.secondLesson.time||'—')+' · '+dur2d+'min · '+priceLabel(s);
+      }else if(en.type==='regular_moved'){
+        tagHtml=' <span class="tag gold" style="font-size:10px;">movida</span>';
+        var durMd=(s.attendance[en.origKey]&&s.attendance[en.origKey].duration)||s.duration;
+        rm2Text=(en.time||'—')+' · '+durMd+'min · '+priceLabel(s)+' · movida de '+fdd(en.origKey);
       }else{
         var dur1d=(s.attendance[dailyDt]&&s.attendance[dailyDt].duration)||s.duration;
         rm2Text=occTime(s,dt)+' · '+dur1d+'min · '+priceLabel(s);
@@ -6479,6 +6537,8 @@ function renderDaily(){
         holder.appendChild(delBtn2);
       }else if(en.type==='regular2'){
         renderAttControls(holder,s.id,dailyDt,s.attendance2[dailyDt],'renderDaily','attendance2');
+      }else if(en.type==='regular_moved'){
+        renderAttControls(holder,s.id,en.origKey,s.attendance[en.origKey],'renderDaily');
       }else{
         renderAttControls(holder,s.id,dailyDt,s.attendance[dailyDt],'renderDaily');
       }
