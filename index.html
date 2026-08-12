@@ -2351,14 +2351,20 @@ function renderCalendarWeek(){
     var dKey=dk(dt);
     var entries=[];
     data.students.filter(isActive).forEach(function(s){
-      if(occursOn(s,dt)){entries.push({student:s,time:occTime(s,dt),duration:s.duration||60,cls:'',colorKey:s.id+'_'+dt.getDay()});}
-      if(occursOn2(s,dt)){entries.push({student:s,time:s.secondLesson.time||'',duration:s.secondLesson.duration||s.duration||60,cls:'gold',tag:'2ª',colorKey:s.id+'_2_'+dt.getDay()});}
+      if(occursOn(s,dt)){
+        var rec1=s.attendance[dKey];
+        entries.push({student:s,time:occTime(s,dt),duration:s.duration||60,cls:'',colorKey:s.id+'_'+dt.getDay(),type:rec1?rec1.status:'sched',key:dKey,isSecond:false});
+      }
+      if(occursOn2(s,dt)){
+        var rec2=s.attendance2[dKey];
+        entries.push({student:s,time:s.secondLesson.time||'',duration:s.secondLesson.duration||s.duration||60,cls:'gold',tag:'2ª',colorKey:s.id+'_2_'+dt.getDay(),type:rec2?rec2.status:'sched',key:dKey,isSecond:true});
+      }
     });
     (data.schedExtras||[]).filter(function(e){return e.date===dKey;}).forEach(function(e){
       var s=exStudentObj(e);
       if(s&&(!s.id||isActive(s))){
         var kLbl=exKindLabel(e.kind).toLowerCase();
-        entries.push({student:s,time:e.time,duration:e.duration||60,cls:'other',tag:e.done?(kLbl+' dada'):kLbl,colorKey:'extra_'+e.id,extraId:e.id});
+        entries.push({student:s,time:e.time,duration:e.duration||60,cls:'other',tag:e.done?(kLbl+' dada'):kLbl,colorKey:'extra_'+e.id,extraId:e.id,type:e.done?'extra':'ex-sched',key:dKey,kind:e.kind||'extra'});
       }
     });
     (data.weekAppointments||[]).filter(function(a){return apptOccursOn(a,dt);}).forEach(function(a){
@@ -2371,9 +2377,9 @@ function renderCalendarWeek(){
           if(!rec||!rec.makeup){return;}
           var dur=which==='attendance2'?(s.secondLesson.duration||s.duration||60):(s.duration||60);
           if(!rec.makeup.done&&rec.makeup.scheduledDate===dKey){
-            entries.push({student:s,time:rec.makeup.scheduledTime||'',duration:dur,cls:'other',tag:'reposição',colorKey:'mk_'+s.id+'_'+absKey});
+            entries.push({student:s,time:rec.makeup.scheduledTime||'',duration:dur,cls:'other',tag:'reposição',colorKey:'mk_'+s.id+'_'+absKey,type:'mk-sched',key:dKey,absDate:absKey});
           }else if(rec.makeup.done&&rec.makeup.doneDate===dKey){
-            entries.push({student:s,time:rec.makeup.scheduledTime||'',duration:dur,cls:'',tag:'reposição dada',colorKey:'mkd_'+s.id+'_'+absKey});
+            entries.push({student:s,time:rec.makeup.scheduledTime||'',duration:dur,cls:'',tag:'reposição dada',colorKey:'mkd_'+s.id+'_'+absKey,type:'makeup-done',key:dKey,absDate:absKey});
           }
         });
       });
@@ -2446,8 +2452,13 @@ function renderCalendarWeek(){
         block.addEventListener('click',(function(id){return function(ev){ev.stopPropagation();openApptEditModal(id);};})(e.id));
       }else{
         block.innerHTML=e.time+' '+e.student.name+(e.tag?' <span style="opacity:.85;">('+e.tag+')</span>':'');
-        block.title=e.student.name+' · '+e.time;
-        if(e.student.id){
+        block.title=e.student.name+' · '+e.time+' — toque para editar/excluir';
+        if(e.type){
+          block.addEventListener('click',(function(en){return function(ev){
+            ev.stopPropagation();
+            openCalAction({type:en.type,name:en.student.name.split(' ')[0]+(en.isSecond?' (2ª)':''),time:en.time,studentId:en.student.id,stype:en.student.studentType,extraId:en.extraId,absDate:en.absDate,kind:en.kind,isSecond:en.isSecond},en.key);
+          };})(e));
+        }else if(e.student.id){
           block.addEventListener('click',(function(sid){return function(ev){ev.stopPropagation();openStu(sid);};})(e.student.id));
         }else if(e.extraId){
           block.addEventListener('click',(function(eid){return function(ev){ev.stopPropagation();openExModal(null,eid);};})(e.extraId));
