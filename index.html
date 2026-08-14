@@ -275,6 +275,7 @@ body.density-compact .nav-item{padding:7px 10px;}
     </div>
     <button class="btn" id="login-btn" style="width:100%;justify-content:center;">Entrar</button>
     <div id="login-err">Senha incorreta.</div>
+    <div style="text-align:center;margin-top:12px;"><a href="#" id="forgot-pwd-link" style="font-size:12px;color:var(--inks,#8a7d6e);text-decoration:underline;">Esqueci minha senha</a></div>
   </div>
 </div>
 <div class="app" id="app" style="display:none;">
@@ -550,7 +551,7 @@ body.density-compact .nav-item{padding:7px 10px;}
             <p style="font-size:12px;color:var(--inks);margin-bottom:8px;">Como tudo roda só no seu navegador, não existe um jeito de enviar backup pra nuvem/e-mail sozinho, em segundo plano. Mas o sistema pode <b>te lembrar</b> no intervalo que você escolher, e deixar o backup + envio por e-mail a um clique de distância.</p>
             <p id="backup-status" style="font-size:12px;font-weight:600;margin-bottom:8px;">—</p>
             <div class="field" style="margin-bottom:8px;"><label>Me lembrar a cada</label><select id="backup-reminder-days"><option value="0">Nunca (desativado)</option><option value="7">7 dias</option><option value="15">15 dias</option><option value="30">30 dias</option></select></div>
-            <div class="field" style="margin-bottom:8px;"><label>E-mail para envio do backup (opcional)</label><input type="email" id="backup-email" placeholder="seu@email.com"></div>
+            <div class="field" style="margin-bottom:8px;"><label>E-mail para backup e recuperação de senha</label><input type="email" id="backup-email" placeholder="seu@email.com"><p style="font-size:11px;color:var(--inks);margin:4px 0 0;">Usado no botão "Enviar por e-mail" do backup, e também na tela de login, caso você esqueça a senha.</p></div>
             <button class="btn ghost sm" id="backup-email-btn" title="Baixa o backup e abre seu e-mail já com instrução de anexar o arquivo">&#9993; Baixar e enviar por e-mail</button>
           </div>
         </div>
@@ -921,6 +922,7 @@ var FONT_DEFS=[
 var appMode='oficial';
 var data={students:[],schedExtras:[],weekAppointments:[]};
 var cfg=null;
+var hasUnsavedChangesToday=false;
 var curSid=null;
 var attMO=0;
 var studF='active';
@@ -988,7 +990,7 @@ function loadCfg(){
       return c;
     }
   }catch(e){}
-  return{password:'piano123',monthlyGoal:0,monthlyGoalPrivate:0,monthlyGoalSchool:0,darkMode:false,theme:'classic',customColors:defaultCustomColors(),font:'classic',radius:'rounded',density:'comfortable',showWeekends:false,lastBackupDate:null,backupReminderDays:7,backupEmail:'',finChartCollapsed:false,finListCollapsed:false,goalCollapsed:false,weekViewColors:{},dailyMkCollapsed:false,teacherName:'',teacherCpf:''};
+  return{password:'Piano2911',monthlyGoal:0,monthlyGoalPrivate:0,monthlyGoalSchool:0,darkMode:false,theme:'classic',customColors:defaultCustomColors(),font:'classic',radius:'rounded',density:'comfortable',showWeekends:false,lastBackupDate:null,backupReminderDays:7,backupEmail:'',finChartCollapsed:false,finListCollapsed:false,goalCollapsed:false,weekViewColors:{},dailyMkCollapsed:false,teacherName:'',teacherCpf:''};
 }
 function saveCfg(){
   localStorage.setItem(SKC,JSON.stringify(cfg));
@@ -1040,6 +1042,7 @@ function saveData(){
     }
   }catch(e){}
   localStorage.setItem(k,JSON.stringify(data));
+  hasUnsavedChangesToday=true;
 }
 function undoLast(){
   var curKey=appMode==='simulador'?SKS:SKO;
@@ -1685,6 +1688,17 @@ function onDensityBtnClick(){
   toast('Espaçamento alterado');
 }
 
+function forgotPassword(){
+  var email=cfg.backupEmail;
+  if(!email){
+    alert('Nenhum e-mail de recuperação foi configurado ainda.\n\nPeça para quem tem acesso ao sistema configurar um em Configurações > Backup (campo "E-mail para backup e recuperação de senha"). Sem isso, a única forma de recuperar o acesso é lembrando a senha ou restaurando um backup salvo em outro dispositivo já logado.');
+    return;
+  }
+  var subject=encodeURIComponent('Recuperação de senha - Estúdio Piano');
+  var body=encodeURIComponent('Você solicitou a recuperação da sua senha de acesso ao sistema de gestão de alunos.\n\nSua senha atual é: '+cfg.password+'\n\nSe você não fez essa solicitação, ignore este e-mail.');
+  window.open('mailto:'+email+'?subject='+subject+'&body='+body,'_blank');
+  toast('Abrindo seu app de e-mail com a senha...');
+}
 function doLogin(){
   if(document.getElementById('login-pwd').value!==cfg.password){
     document.getElementById('login-err').style.display='block';
@@ -1732,8 +1746,15 @@ function refreshApp(){
   toast('Dados atualizados');
   if(btn){setTimeout(function(){btn.classList.remove('spinning');},500);}
 }
+function backupIfNeeded(){
+  if(hasUnsavedChangesToday&&cfg.lastBackupDate!==dkT()){
+    exportBackup();
+    return true;
+  }
+  return false;
+}
 function doLogout(){
-  if(confirm('Deseja exportar um backup antes de saída?')){exportBackup();}
+  if(backupIfNeeded()){toast('Backup automático feito antes de sair');}
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-pwd').value='';
@@ -6337,6 +6358,7 @@ function exportBackup(){
   URL.revokeObjectURL(url);
   cfg.lastBackupDate=dkT();
   saveCfg();
+  hasUnsavedChangesToday=false;
   renderBackupStatus();
   toast('Exportado');
 }
@@ -6724,7 +6746,18 @@ function attachEventListeners(){
       }
     }
   });
+  window.addEventListener('beforeunload',function(ev){
+    var loggedIn=document.getElementById('app').style.display!=='none';
+    if(!loggedIn){return;}
+    if(hasUnsavedChangesToday&&cfg.lastBackupDate!==dkT()){
+      try{exportBackup();}catch(e){}
+      ev.preventDefault();
+      ev.returnValue='Você tem alterações de hoje ainda não salvas em backup.';
+      return ev.returnValue;
+    }
+  });
   document.getElementById('login-btn').addEventListener('click',doLogin);
+  document.getElementById('forgot-pwd-link').addEventListener('click',function(ev){ev.preventDefault();forgotPassword();});
 
   document.getElementById('dash-newstu-btn').addEventListener('click',function(){openStuModal();});
   document.getElementById('dash-addlesson-btn').addEventListener('click',function(){openCalAddChoice(dkT(),null);});
