@@ -329,6 +329,7 @@ body.density-compact .nav-item{padding:7px 10px;}
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <div class="mnav" style="max-width:300px;margin-bottom:0;"><button id="cal-prev" title="Anterior">&larr;</button><div class="mlbl" id="cal-lbl"></div><button id="cal-next" title="Próximo">&rarr;</button></div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="ptabs" id="cal-week-display-tabs" style="display:none;"><button class="ptab active" data-wdisp="default">Padrão</button><button class="ptab" data-wdisp="bairro" title="Mostra o bairro dos alunos particulares em cada aula, útil para planejar deslocamentos">Bairro</button></div>
           <button class="btn ghost sm" id="cal-week-export-btn" style="display:none;" title="Baixar esta semana como PDF, para imprimir ou compartilhar">&#128196; Exportar semana (PDF)</button>
           <div class="ptabs" id="cal-view-tabs"><button class="ptab active" data-view="month">Mês</button><button class="ptab" data-view="week">Semana</button></div>
         </div>
@@ -377,7 +378,7 @@ body.density-compact .nav-item{padding:7px 10px;}
     <div class="page" id="page-detail">
       <div class="back-link" id="det-back">&larr; Voltar</div>
       <div class="ph">
-        <div><h1 id="det-name">—</h1><div class="sub" id="det-meta"></div></div>
+        <div><h1 id="det-name">—</h1><div class="sub" id="det-meta"></div><div class="sub" id="det-address" style="display:none;"></div></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn ghost sm" id="det-addlesson-btn" title="Adicionar aula extra ou mudar o dia desta semana">+ Adicionar aula</button>
           <button class="btn ghost sm" id="det-dellesson-btn" title="Escolher uma data para editar ou excluir uma aula já registrada ou agendada">&#128465; Excluir aula</button>
@@ -627,6 +628,10 @@ body.density-compact .nav-item{padding:7px 10px;}
   <div class="g2">
     <div class="field"><label>Tipo de aluno</label><select id="sm-stype"><option value="private">Particular</option><option value="school">Escola</option></select></div>
     <div class="field" id="sm-school-f" style="display:none;"><label>Nome da escola</label><input type="text" id="sm-school"></div>
+  </div>
+  <div class="g2">
+    <div class="field"><label id="sm-address-lbl">Endereço</label><input type="text" id="sm-address" placeholder="Rua, número, complemento"></div>
+    <div class="field"><label id="sm-neighborhood-lbl">Bairro</label><input type="text" id="sm-neighborhood"></div>
   </div>
   <div class="g2">
     <div class="field"><label>Modalidade</label><select id="sm-modality"><option value="presencial">Presencial</option><option value="online">Online</option></select></div>
@@ -1102,6 +1107,8 @@ function fixS(s){
   if(s.colorIdx===undefined){s.colorIdx=Math.floor(Math.random()*8);}
   if(!s.studentType){s.studentType='private';}
   if(s.schoolName===undefined){s.schoolName='';}
+  if(s.address===undefined){s.address='';}
+  if(s.neighborhood===undefined){s.neighborhood='';}
   if(!s.modality){s.modality='presencial';}
   if(!s.startDate){s.startDate=(s.timeline&&s.timeline[0]&&s.timeline[0].date)||dkT();}
   if(!s.trackingStartDate){s.trackingStartDate=s.startDate||dkT();}
@@ -2113,9 +2120,17 @@ function setCalViewMode(mode){
   document.getElementById('cal-grid').style.display=mode==='month'?'':'none';
   document.getElementById('cal-week-view').style.display=mode==='week'?'':'none';
   document.getElementById('cal-week-export-btn').style.display=mode==='week'?'':'none';
+  document.getElementById('cal-week-display-tabs').style.display=mode==='week'?'':'none';
   renderCalendar();
 }
 var weekSlotCtx=null;
+var weekDisplayMode='default';
+function setWeekDisplayMode(mode){
+  weekDisplayMode=mode;
+  var tabs=document.querySelectorAll('#cal-week-display-tabs .ptab');
+  tabs.forEach(function(t){t.classList.toggle('active',t.getAttribute('data-wdisp')===mode);});
+  renderCalendarWeek();
+}
 function apptOccursOn(a,dt){
   var dKey=dk(dt);
   if(!a.recurring){return a.date===dKey;}
@@ -2359,7 +2374,7 @@ function exportWeekViewPDF(){
     var pageW=doc.internal.pageSize.getWidth();
     var pageH=doc.internal.pageSize.getHeight();
     doc.setFontSize(14);
-    doc.text('Agenda da semana — '+weekLbl,pageW/2,12,{align:'center'});
+    doc.text('Agenda da semana'+(weekDisplayMode==='bairro'?' (por bairro)':'')+' — '+weekLbl,pageW/2,12,{align:'center'});
     var margin=10;
     var maxW=pageW-margin*2;
     var maxH=pageH-28;
@@ -2368,7 +2383,7 @@ function exportWeekViewPDF(){
     var imgH=canvas.height*ratio;
     var x=(pageW-imgW)/2;
     doc.addImage(imgData,'PNG',x,20,imgW,imgH);
-    doc.save('agenda-semana-'+dkT()+'.pdf');
+    doc.save('agenda-semana'+(weekDisplayMode==='bairro'?'-bairro':'')+'-'+dkT()+'.pdf');
     btn.textContent=origLbl;
     btn.disabled=false;
   }).catch(function(err){
@@ -2509,7 +2524,15 @@ function renderCalendarWeek(){
         block.title=e.text+' · '+e.time;
         block.addEventListener('click',(function(id){return function(ev){ev.stopPropagation();openApptEditModal(id);};})(e.id));
       }else{
-        block.innerHTML=e.time+' '+e.student.name+(e.tag?' <span style="opacity:.85;">('+e.tag+')</span>':'');
+        var lblText=e.student.name+(e.tag?' <span style="opacity:.85;">('+e.tag+')</span>':'');
+        if(weekDisplayMode==='bairro'){
+          if((e.student.studentType||'private')==='private'){
+            lblText=e.student.name+(e.student.neighborhood?' <span style="opacity:.85;">— '+e.student.neighborhood+'</span>':' <span style="opacity:.6;">(sem bairro)</span>');
+          }else{
+            lblText=e.student.name+' <span style="opacity:.85;">(Escola'+(e.student.schoolName?': '+e.student.schoolName:'')+')</span>';
+          }
+        }
+        block.innerHTML=e.time+' '+lblText;
         block.title=e.student.name+' · '+e.time+' — toque para editar/excluir';
         if(e.type){
           block.addEventListener('click',(function(en){return function(ev){
@@ -3744,7 +3767,10 @@ function onStCh(){
   }
 }
 function onStypeCh(){
-  document.getElementById('sm-school-f').style.display=document.getElementById('sm-stype').value==='school'?'':'none';
+  var isSchool=document.getElementById('sm-stype').value==='school';
+  document.getElementById('sm-school-f').style.display=isSchool?'':'none';
+  document.getElementById('sm-address-lbl').textContent=isSchool?'Endereço da escola':'Endereço';
+  document.getElementById('sm-neighborhood-lbl').textContent=isSchool?'Bairro da escola':'Bairro';
 }
 function togDay(d){
   var i=selDays.indexOf(d);
@@ -3787,6 +3813,8 @@ function openStuModal(sid,prefillDay,prefillTime){
     document.getElementById('sm-inactive-month').value=s.inactiveFromMonth||'';
     document.getElementById('sm-stype').value=s.studentType||'private';
     document.getElementById('sm-school').value=s.schoolName||'';
+    document.getElementById('sm-address').value=s.address||'';
+    document.getElementById('sm-neighborhood').value=s.neighborhood||'';
     document.getElementById('sm-modality').value=s.modality||'presencial';
     document.getElementById('sm-startdate').value=s.startDate||dkT();
     document.getElementById('sm-trackstart').value=s.trackingStartDate||s.startDate||dkT();
@@ -3810,7 +3838,7 @@ function openStuModal(sid,prefillDay,prefillTime){
     document.getElementById('sm-2nd-dur').value=(s.secondLesson&&s.secondLesson.duration)||60;
     document.getElementById('sm-2nd-effmonth').value=(s.secondLesson&&s.secondLesson.effectiveMonth)||(function(){var t0=new Date();return t0.getFullYear()+'-'+pad(t0.getMonth()+1);})();
   }else{
-    var clearIds=['sm-name','sm-bday','sm-return','sm-contact','sm-school'];
+    var clearIds=['sm-name','sm-bday','sm-return','sm-contact','sm-school','sm-address','sm-neighborhood'];
     clearIds.forEach(function(id){document.getElementById(id).value='';});
     document.getElementById('sm-status').value='active';
     document.getElementById('sm-inactive-month').value='';
@@ -3940,6 +3968,8 @@ function saveStu(){
     frequency:freq,
     studentType:document.getElementById('sm-stype').value,
     schoolName:document.getElementById('sm-school').value.trim(),
+    address:document.getElementById('sm-address').value.trim(),
+    neighborhood:document.getElementById('sm-neighborhood').value.trim(),
     modality:document.getElementById('sm-modality').value,
     startDate:document.getElementById('sm-startdate').value||dkT(),
     trackingStartDate:document.getElementById('sm-trackstart').value||dkT(),
@@ -4037,6 +4067,14 @@ function openStu(id){
   var typeStr=s.studentType==='school'?('Escola'+(s.schoolName?' ('+s.schoolName+')':'')):'Particular';
   var slotsStr=s.slots.map(function(sl){return DAYF[sl.day]+' '+sl.time;}).join(', ')||'sem horário fixo';
   document.getElementById('det-meta').textContent=fl+' · '+slotsStr+' · '+s.duration+'min · '+priceLabel(s)+' · venc. dia '+s.dueDay+(s.billingCycle==='arrears'?' (mês seguinte)':'')+(s.contact?' · '+s.contact:'')+' · '+typeStr+' · '+(s.modality==='online'?'Online':'Presencial')+(s.startDate?' · desde '+fdd(s.startDate):'')+(s.trackingStartDate?' · contabiliza desde '+fdd(s.trackingStartDate):'')+(s.firstMonthProrated?(' · 1º mês proporcional: '+fm(s.firstMonthProrated.amount)+' ('+s.firstMonthProrated.actualCount+'/'+s.firstMonthProrated.fullCount+' aulas)'):'');
+  var addrEl=document.getElementById('det-address');
+  var addrParts=[s.address,s.neighborhood].filter(function(x){return x;});
+  if(addrParts.length){
+    addrEl.style.display='';
+    addrEl.textContent='📍 '+(s.studentType==='school'?'Escola: ':'')+addrParts.join(' — ');
+  }else{
+    addrEl.style.display='none';
+  }
   document.getElementById('notes-area').value=s.notes||'';
   document.getElementById('level-sel').value=s.level||'';
   document.getElementById('method-in').value=s.method||'';
@@ -6779,6 +6817,9 @@ function attachEventListeners(){
   document.getElementById('cal-prev').addEventListener('click',function(){chCalM(-1);});
   document.querySelectorAll('#cal-view-tabs .ptab').forEach(function(btn){
     btn.addEventListener('click',function(){setCalViewMode(btn.getAttribute('data-view'));});
+  });
+  document.querySelectorAll('#cal-week-display-tabs .ptab').forEach(function(btn){
+    btn.addEventListener('click',function(){setWeekDisplayMode(btn.getAttribute('data-wdisp'));});
   });
   document.getElementById('cal-next').addEventListener('click',function(){chCalM(1);});
   document.getElementById('cal-week-export-btn').addEventListener('click',exportWeekViewPDF);
