@@ -330,6 +330,7 @@ body.density-compact .nav-item{padding:7px 10px;}
         <div class="mnav" style="max-width:300px;margin-bottom:0;"><button id="cal-prev" title="Anterior">&larr;</button><div class="mlbl" id="cal-lbl"></div><button id="cal-next" title="Próximo">&rarr;</button></div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <div class="ptabs" id="cal-week-display-tabs" style="display:none;"><button class="ptab active" data-wdisp="default">Padrão</button><button class="ptab" data-wdisp="bairro" title="Mostra o bairro dos alunos particulares em cada aula, útil para planejar deslocamentos">Bairro</button></div>
+          <label id="cal-week-hidename-wrap" style="display:none;align-items:center;gap:6px;font-size:12px;color:var(--inks);cursor:pointer;"><input type="checkbox" id="cal-week-hidename" style="width:15px;height:15px;"> Ocultar nomes</label>
           <button class="btn ghost sm" id="cal-week-export-btn" style="display:none;" title="Baixar esta semana como PDF, para imprimir ou compartilhar">&#128196; Exportar semana (PDF)</button>
           <div class="ptabs" id="cal-view-tabs"><button class="ptab active" data-view="month">Mês</button><button class="ptab" data-view="week">Semana</button></div>
         </div>
@@ -721,8 +722,8 @@ body.density-compact .nav-item{padding:7px 10px;}
 </div></div>
 
 <div class="modal-overlay" id="pay-modal"><div class="modal"><h2>Registrar pagamento</h2><input type="hidden" id="pay-id"><div id="pay-hint" style="display:none;margin-bottom:10px;"></div>
-  <div class="field"><label>Tipo</label><select id="pay-type"><option value="regular">Mensalidade/Aula</option><option value="extra">Pagamento extra</option></select></div>
-  <div class="field" id="pay-desc-f" style="display:none;"><label>Descrição</label><input type="text" id="pay-desc" placeholder="Ex: Partitura, material..."></div>
+  <div class="field"><label>Tipo</label><select id="pay-type"><option value="regular">Mensalidade/Aula</option><option value="extra">Pagamento extra (material, partitura...)</option></select></div>
+  <div class="field" id="pay-desc-f" style="display:none;"><label>Descrição</label><input type="text" id="pay-desc" placeholder="Ex: Partitura, material..."><p style="font-size:11px;color:var(--inks);margin:4px 0 0;">Use isto para cobranças à parte (material, partitura, etc). Para uma <b>aula extra/avulsa</b>, não registre o pagamento aqui — marque "Fechado (pago)" direto na própria aula, na tela de Aulas extras, para não contar em duplicidade.</p></div>
   <div class="field"><label>Valor (R$)</label><input type="number" id="pay-amt" min="0" step="5"></div><div class="field"><label>Data em que recebeu</label><input type="date" id="pay-date"></div><div class="field"><label style="font-weight:700;">Mês a que este pagamento se refere</label><input type="month" id="pay-month" style="border-color:var(--gold);"><p style="font-size:11px;color:var(--inks);margin:4px 0 0;">Importante: se o valor recebido hoje é para pagar um mês anterior, mude este campo — é ele que define se o mês fica quitado ou pendente.</p></div><div class="field"><label>Observação</label><input type="text" id="pay-note" placeholder="Ex: Pix..."></div><div class="mact"><button class="btn ghost sm" id="pay-cancel-btn">Cancelar</button><button class="btn" id="pay-save-btn">Salvar</button></div></div></div>
 
 <div class="modal-overlay" id="ph-modal"><div class="modal"><h2 id="ph-modal-title">Alteração de valor</h2><input type="hidden" id="ph-id"><div class="field"><label>O que está mudando</label><select id="ph-field"><option value="price">Valor por aula</option><option value="monthlyFee">Valor da mensalidade</option></select></div><div class="field"><label id="ph-price-lbl">Novo valor por aula (R$)</label><input type="number" id="ph-price" min="0" step="5"></div><div class="field"><label>Data do registro</label><input type="date" id="ph-date"></div><div class="field"><label>Vale a partir de qual mês</label><input type="month" id="ph-effmonth"></div><p style="font-size:11px;color:var(--inks);margin:-6px 0 10px;">Meses anteriores a este continuam contabilizados com o valor antigo, mesmo que já tenham sido pagos.</p><div class="field"><label>Motivo</label><input type="text" id="ph-reason" placeholder="Ex: Reajuste anual"></div><div class="mact"><button class="btn ghost sm" id="ph-cancel-btn">Cancelar</button><button class="btn" id="ph-save-btn">Salvar</button></div></div></div>
@@ -2125,10 +2126,12 @@ function setCalViewMode(mode){
 }
 var weekSlotCtx=null;
 var weekDisplayMode='default';
+var weekHideNames=false;
 function setWeekDisplayMode(mode){
   weekDisplayMode=mode;
   var tabs=document.querySelectorAll('#cal-week-display-tabs .ptab');
   tabs.forEach(function(t){t.classList.toggle('active',t.getAttribute('data-wdisp')===mode);});
+  document.getElementById('cal-week-hidename-wrap').style.display=mode==='bairro'?'flex':'none';
   renderCalendarWeek();
 }
 function apptOccursOn(a,dt){
@@ -2374,7 +2377,7 @@ function exportWeekViewPDF(){
     var pageW=doc.internal.pageSize.getWidth();
     var pageH=doc.internal.pageSize.getHeight();
     doc.setFontSize(14);
-    doc.text('Agenda da semana'+(weekDisplayMode==='bairro'?' (por bairro)':'')+' — '+weekLbl,pageW/2,12,{align:'center'});
+    doc.text('Agenda da semana'+(weekDisplayMode==='bairro'?(' (por bairro'+(weekHideNames?', sem nomes':'')+')'):'')+' — '+weekLbl,pageW/2,12,{align:'center'});
     var margin=10;
     var maxW=pageW-margin*2;
     var maxH=pageH-28;
@@ -2526,7 +2529,11 @@ function renderCalendarWeek(){
       }else{
         var lblText=e.student.name+(e.tag?' <span style="opacity:.85;">('+e.tag+')</span>':'');
         if(weekDisplayMode==='bairro'){
-          if((e.student.studentType||'private')==='private'){
+          var isPriv=(e.student.studentType||'private')==='private';
+          var placeText=isPriv?(e.student.neighborhood||'(sem bairro)'):('Escola'+(e.student.schoolName?': '+e.student.schoolName:''));
+          if(weekHideNames){
+            lblText='<span style="opacity:.9;">'+placeText+'</span>';
+          }else if(isPriv){
             lblText=e.student.name+(e.student.neighborhood?' <span style="opacity:.85;">— '+e.student.neighborhood+'</span>':' <span style="opacity:.6;">(sem bairro)</span>');
           }else{
             lblText=e.student.name+' <span style="opacity:.85;">(Escola'+(e.student.schoolName?': '+e.student.schoolName:'')+')</span>';
@@ -6820,6 +6827,10 @@ function attachEventListeners(){
   });
   document.querySelectorAll('#cal-week-display-tabs .ptab').forEach(function(btn){
     btn.addEventListener('click',function(){setWeekDisplayMode(btn.getAttribute('data-wdisp'));});
+  });
+  document.getElementById('cal-week-hidename').addEventListener('change',function(){
+    weekHideNames=this.checked;
+    renderCalendarWeek();
   });
   document.getElementById('cal-next').addEventListener('click',function(){chCalM(1);});
   document.getElementById('cal-week-export-btn').addEventListener('click',exportWeekViewPDF);
