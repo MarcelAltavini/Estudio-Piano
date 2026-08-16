@@ -2026,9 +2026,9 @@ function renderGoal(t,cur,active){
   var goalP=cfg.monthlyGoalPrivate||0;
   var goalS=cfg.monthlyGoalSchool||0;
   if(!goal&&!goalP&&!goalS){gc.innerHTML='';return;}
-  var recv=active.reduce(function(s,st){return s+allPayAmt(st,cur);},0);
-  var recvP=active.filter(function(s){return(s.studentType||'private')==='private';}).reduce(function(s,st){return s+allPayAmt(st,cur);},0);
-  var recvS=active.filter(function(s){return s.studentType==='school';}).reduce(function(s,st){return s+allPayAmt(st,cur);},0);
+  var recv=data.students.reduce(function(s,st){return s+allPayAmt(st,cur);},0);
+  var recvP=data.students.filter(function(s){return(s.studentType||'private')==='private';}).reduce(function(s,st){return s+allPayAmt(st,cur);},0);
+  var recvS=data.students.filter(function(s){return s.studentType==='school';}).reduce(function(s,st){return s+allPayAmt(st,cur);},0);
   function barHtml(label,g,r){
     var pct=Math.min(100,Math.round(r/g*100));
     var bc=pct<50?'danger':pct<100?'warn':'';
