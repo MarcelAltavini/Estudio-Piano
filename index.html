@@ -5529,8 +5529,8 @@ function openFinMetricDetail(kind){
     desc.textContent='Todos os pagamentos recebidos no período, por data — inclui mensalidade/aula regular e aulas extras/avulsas pagas.';
     var payments=[];
     students.forEach(function(s){
-      s.payments.filter(function(pm){return finLastMks.indexOf(pm.month)>=0&&pm.type!=='extra';}).forEach(function(pm){
-        payments.push({name:s.name,date:pm.date,amount:Number(pm.amount),month:pm.month,note:pm.note,type:pm.type,stype:s.studentType});
+      s.payments.filter(function(pm){return finLastMks.indexOf(pm.month)>=0;}).forEach(function(pm){
+        payments.push({name:s.name,date:pm.date,amount:Number(pm.amount),month:pm.month,note:pm.type==='extra'?('pagamento extra'+(pm.desc?' — '+pm.desc:'')):pm.note,type:pm.type,stype:s.studentType});
       });
       (data.schedExtras||[]).filter(function(e){return e.studentId===s.id&&e.paid&&finLastMks.indexOf(extraDueMonth(s,e.date))>=0;}).forEach(function(e){
         payments.push({name:s.name,date:e.paidDate||e.date,amount:Number(e.price!=null?e.price:s.price),month:extraDueMonth(s,e.date),note:'aula extra/avulsa',type:'extra',stype:s.studentType});
