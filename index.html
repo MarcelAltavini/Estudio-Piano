@@ -3665,7 +3665,7 @@ function updateWA(){
   if(!s){return;}
   var type=document.getElementById('wa-type').value;
   var t=new Date();
-  var mk=t.getFullYear()+'-'+pad(t.getMonth()+1);
+  var mk=effectiveLessonMk(s,t.getFullYear()+'-'+pad(t.getMonth()+1));
   var fn=s.name.split(' ')[0];
   var nextL=getNextLesson(s,t);
   var nextStr=nextL?(DAYF[nextL.getDay()]+', '+nextL.getDate()+'/'+pad(nextL.getMonth()+1)+' às '+occTime(s,nextL)):'em breve';
@@ -5094,7 +5094,7 @@ function renderPHList(){
 function genReceipt(){
   var s=gS(curSid);
   var now=new Date();
-  var mk=now.getFullYear()+'-'+pad(now.getMonth()+1);
+  var mk=effectiveLessonMk(s,now.getFullYear()+'-'+pad(now.getMonth()+1));
   var e=expAmt(s,mk);
   var p=regPayAmt(s,mk);
   var pendReal=pendAmt(s,mk);
@@ -5460,9 +5460,18 @@ function prevPeriodMks(mks){
   }
   return arr;
 }
+function effectiveLessonMk(s,viewMk){
+  if(s.billingCycle!=='arrears'){return viewMk;}
+  var parts=viewMk.split('-');
+  var y=Number(parts[0]);
+  var m=Number(parts[1])-1-1;
+  if(m<0){m=11;y--;}
+  return y+'-'+pad(m+1);
+}
 function aggForMonths(s,mks){
   var e=0,recvAll=0,recvReg=0,pend=0,owed=0;
-  mks.forEach(function(mk){
+  mks.forEach(function(viewMk){
+    var mk=effectiveLessonMk(s,viewMk);
     e+=expAmt(s,mk);
     recvAll+=allPayAmt(s,mk);
     recvReg+=regPayAmt(s,mk);
@@ -5554,7 +5563,7 @@ function openFinMetricDetail(kind){
     var expRows=[];
     students.filter(isActive).forEach(function(s){
       var tot=0;
-      finLastMks.forEach(function(mk){tot+=expAmt(s,mk);});
+      finLastMks.forEach(function(mk){tot+=expAmt(s,effectiveLessonMk(s,mk));});
       if(tot>0.01){expRows.push({name:s.name,amt:tot,stype:s.studentType});}
     });
     expRows.sort(function(a,b){return b.amt-a.amt;});
@@ -5576,10 +5585,11 @@ function openFinMetricDetail(kind){
     students.forEach(function(s){
       var tot=0,oldestDue=null;
       finLastMks.forEach(function(mk){
-        var p=pendAmt(s,mk);
+        var lessonMk=effectiveLessonMk(s,mk);
+        var p=pendAmt(s,lessonMk);
         if(p>0.01){
           tot+=p;
-          var dd=dk(dueDateFor(s,mk));
+          var dd=dk(dueDateFor(s,lessonMk));
           if(!oldestDue||dd<oldestDue){oldestDue=dd;}
         }
       });
@@ -5658,7 +5668,7 @@ function renderFinance(sub){
     exp+=agg.exp;
     var status;
     if(isMonthly){
-      var dd=dueDateFor(s,mks[0]);
+      var dd=dueDateFor(s,effectiveLessonMk(s,mks[0]));
       dd.setHours(0,0,0,0);
       var due=Math.round((dd-tod)/864e5);
       if(agg.pend>0){status='<span class="tag pend">Vencido</span>';}
@@ -5739,7 +5749,7 @@ function renderForecast(){
     var dt=new Date(now.getFullYear(),now.getMonth()+i,1);
     var mk=dt.getFullYear()+'-'+pad(dt.getMonth()+1);
     var total=0;
-    active.forEach(function(s){total+=expAmt(s,mk);});
+    active.forEach(function(s){total+=expAmt(s,effectiveLessonMk(s,mk));});
     html+='<div class="metric gold"><div class="lbl">'+MON[dt.getMonth()]+'/'+dt.getFullYear()+'</div><div class="val fin-num">'+fm(total)+'</div></div>';
   }
   document.getElementById('fin-forecast').innerHTML=html;
@@ -6046,8 +6056,8 @@ function monthAgg(mk){
   var r=0,e=0,pend=0;
   data.students.forEach(function(s){
     r+=allPayAmt(s,mk);
-    e+=expAmt(s,mk);
-    pend+=pendAmt(s,mk);
+    e+=expAmt(s,effectiveLessonMk(s,mk));
+    pend+=pendAmt(s,effectiveLessonMk(s,mk));
   });
   return{r:r,e:e,pend:pend};
 }
@@ -6161,8 +6171,8 @@ function openHistDetail(kind){
     var amt=0;
     mks.forEach(function(mk){
       if(kind==='recv'){amt+=allPayAmt(s,mk);}
-      else if(kind==='exp'){amt+=expAmt(s,mk);}
-      else if(kind==='pend'){amt+=pendAmt(s,mk);}
+      else if(kind==='exp'){amt+=expAmt(s,effectiveLessonMk(s,mk));}
+      else if(kind==='pend'){amt+=pendAmt(s,effectiveLessonMk(s,mk));}
     });
     if(amt>0.001){rows.push({name:s.name,amt:amt});}
   });
