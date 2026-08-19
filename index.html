@@ -197,6 +197,7 @@ textarea{resize:vertical;min-height:68px;}
 .wg-lesson{position:absolute;left:2px;right:2px;border-radius:5px;padding:2px 4px;font-size:11px;font-weight:600;overflow:hidden;cursor:pointer;box-sizing:border-box;color:#fff;background:var(--teal);line-height:1.25;}
 .wg-lesson.gold{background:var(--gold);color:var(--ink);}
 .wg-lesson.other{background:var(--terra);}
+.wg-lesson.absent{background:#8a8a8a;color:#fff;}
 .wg-lesson.appt{background:#2E5FA3;font-style:italic;}
 .cal-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px;}
 .stype-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;}
@@ -2395,6 +2396,12 @@ function exportWeekViewPDF(){
     btn.disabled=false;
   });
 }
+function absTagFor(status){
+  if(status==='absent_student'){return 'falta aluno';}
+  if(status==='absent_teacher'){return 'falta professor';}
+  if(status==='absent'){return 'falta';}
+  return null;
+}
 function renderCalendarWeek(){
   var now=new Date();
   var monday=new Date(now);
@@ -2423,16 +2430,22 @@ function renderCalendarWeek(){
     data.students.filter(isActive).forEach(function(s){
       if(occursOn(s,dt)){
         var rec1=s.attendance[dKey];
-        entries.push({student:s,time:occTime(s,dt),duration:s.duration||60,cls:'',colorKey:s.id+'_'+dt.getDay(),type:rec1?rec1.status:'sched',key:dKey,isSecond:false});
+        var st1=rec1?rec1.status:'sched';
+        var absTag1=absTagFor(st1);
+        entries.push({student:s,time:occTime(s,dt),duration:s.duration||60,cls:absTag1?'absent':'',tag:absTag1,colorKey:s.id+'_'+dt.getDay(),type:st1,key:dKey,isSecond:false});
       }
       if(occursOn2(s,dt)){
         var rec2=s.attendance2[dKey];
-        entries.push({student:s,time:s.secondLesson.time||'',duration:s.secondLesson.duration||s.duration||60,cls:'gold',tag:'2ª',colorKey:s.id+'_2_'+dt.getDay(),type:rec2?rec2.status:'sched',key:dKey,isSecond:true});
+        var st2=rec2?rec2.status:'sched';
+        var absTag2=absTagFor(st2);
+        entries.push({student:s,time:s.secondLesson.time||'',duration:s.secondLesson.duration||s.duration||60,cls:absTag2?'absent':'gold',tag:absTag2?('2ª · '+absTag2):'2ª',colorKey:s.id+'_2_'+dt.getDay(),type:st2,key:dKey,isSecond:true});
       }
       if(hasNaturalOccurrence(s,dt)){
         incomingMoves(s,dKey).forEach(function(mv){
           var recMv=s.attendance[mv.origKey];
-          entries.push({student:s,time:mv.newTime||occTime(s,dt),duration:s.duration||60,cls:'other',tag:'movida',colorKey:s.id+'_mv_'+mv.origKey,type:recMv?recMv.status:'sched',key:mv.origKey,isSecond:false});
+          var stMv=recMv?recMv.status:'sched';
+          var absTagMv=absTagFor(stMv);
+          entries.push({student:s,time:mv.newTime||occTime(s,dt),duration:s.duration||60,cls:absTagMv?'absent':'other',tag:absTagMv?('movida · '+absTagMv):'movida',colorKey:s.id+'_mv_'+mv.origKey,type:stMv,key:mv.origKey,isSecond:false});
         });
       }
     });
@@ -2537,6 +2550,9 @@ function renderCalendarWeek(){
             lblText=e.student.name+(e.student.neighborhood?' <span style="opacity:.85;">— '+e.student.neighborhood+'</span>':' <span style="opacity:.6;">(sem bairro)</span>');
           }else{
             lblText=e.student.name+' <span style="opacity:.85;">(Escola'+(e.student.schoolName?': '+e.student.schoolName:'')+')</span>';
+          }
+          if(e.tag&&e.tag.indexOf('falta')>=0){
+            lblText+=' <span style="opacity:.9;">— '+e.tag+'</span>';
           }
         }
         block.innerHTML=e.time+' '+lblText;
