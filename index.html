@@ -568,11 +568,10 @@ body.density-compact .nav-item{padding:7px 10px;}
         <div class="card"><h2 style="font-size:14px;margin-bottom:4px;">&#127763; Modo claro/escuro</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Alterna o brilho geral da interface.</p><button class="btn sm" id="dark-btn" title="Troca entre tema claro e escuro">&#127761; Ativar modo escuro</button></div>
       </div>
       <div class="g2" style="margin-bottom:14px;">
-        <div class="card"><h2 style="font-size:14px;margin-bottom:4px;">&#128269; Verificar dados</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Confere o cadastro de todos os alunos e avisa sobre valores zerados, datas no futuro ou horários faltando.</p><button class="btn sm" id="health-check-btn">&#128269; Verificar agora</button></div>
+        <div class="card"><h2 style="font-size:14px;margin-bottom:4px;">&#129502; Diagnóstico do sistema</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Roda todas as verificações de uma vez: cadastro incompleto (valores zerados, datas erradas, endereço/contato faltando), conflitos de horário entre alunos, e aulas extras esquecidas sem marcar como realizadas.</p><button class="btn sm" id="full-diagnostic-btn">&#129502; Rodar diagnóstico completo</button></div>
         <div class="card"><h2 style="font-size:14px;margin-bottom:4px;">&#128197; Dias da semana</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Se você não dá aula aos sábados e domingos, oculte-os para deixar a agenda e o cadastro de alunos mais limpos. Pode reativar quando quiser.</p><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="weekends-toggle" style="width:16px;height:16px;"> Mostrar sábados e domingos</label></div>
       </div>
       <div class="card" style="margin-bottom:14px;"><h2 style="font-size:14px;margin-bottom:4px;">&#128190; Uso de armazenamento</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Seus dados ficam salvos só neste navegador, neste dispositivo (não vão pra nenhum servidor). A maioria dos navegadores permite até ~5 MB por site — bem mais do que costuma ser necessário.</p><div id="storage-usage"></div></div>
-      <div class="card" style="margin-bottom:14px;"><h2 style="font-size:14px;margin-bottom:4px;">&#9200; Conflitos de horário</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Varre todos os alunos ativos cadastrados de uma vez e avisa se dois deles têm aula marcada no mesmo dia/horário. Útil depois de importar um backup ou cadastrar vários alunos seguidos.</p><button class="btn sm" id="conflict-check-btn">&#9200; Verificar conflitos</button></div>
       <div class="card" style="margin-bottom:14px;"><h2 style="font-size:14px;margin-bottom:4px;">&#128100; Seus dados (para documentos)</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Usados no Informe de Rendimentos e podem aparecer em recibos. Opcional.</p><div class="g2"><div class="field" style="margin-bottom:6px;"><label>Seu nome completo</label><input type="text" id="teacher-name-in"></div><div class="field" style="margin-bottom:6px;"><label>CPF</label><input type="text" id="teacher-cpf-in" placeholder="000.000.000-00"></div></div><button class="btn sm" id="teacher-info-save-btn">Salvar</button></div>
       <div class="card" style="margin-bottom:14px;border:1px solid var(--terra);"><h2 style="font-size:14px;margin-bottom:4px;color:var(--terra);">&#9888; Zona de risco</h2><p style="font-size:13px;color:var(--inks);margin-bottom:10px;">Apaga permanentemente todos os alunos, pagamentos, presenças, aulas extras e compromissos, deixando o sistema como se fosse recém-instalado. Não tem como desfazer — faça um backup antes.</p><button class="btn" style="background:var(--terra);color:#fff;" id="reset-open-btn">&#128465; Resetar todos os dados</button></div>
       <div class="card" style="margin-bottom:14px;">
@@ -2818,6 +2817,12 @@ function runDataHealthCheck(){
     }else if(s.studentType==='school'&&!s.schoolName){
       issues.push({name:s.name,id:s.id,msg:'Está marcada como aluna de escola, mas o nome da escola não foi preenchido.'});
     }
+    if(s.studentType==='school'&&isActive(s)&&!s.address&&!s.neighborhood){
+      issues.push({name:s.name,id:s.id,msg:'É aluna de escola, mas o endereço/bairro da escola não foi preenchido — isso é usado na visualização "Bairro" da agenda semanal.'});
+    }
+    if(isActive(s)&&s.modality!=='online'&&!s.contact){
+      issues.push({name:s.name,id:s.id,msg:'Está ativa, presencial, mas não tem contato/WhatsApp cadastrado.'});
+    }
     if(s.secondLesson&&s.secondLesson.enabled&&!s.secondLesson.time){
       issues.push({name:s.name,id:s.id,msg:'Tem a "2ª aula" ativada, mas o horário dela está vazio.'});
     }
@@ -2920,51 +2925,42 @@ function openReadjustModal(){
   }
   document.getElementById('health-modal').classList.add('open');
 }
-function openConflictCheckModal(){
+function openFullDiagnosticModal(){
   try{
-    document.getElementById('health-modal-title').innerHTML='&#9200; Conflitos de horário';
-    var issues=runFullConflictScan();
+    document.getElementById('health-modal-title').innerHTML='&#129502; Diagnóstico do sistema';
+    var dataIssues=runDataHealthCheck();
+    var conflictIssues=runFullConflictScan();
     var el=document.getElementById('health-list');
-    if(!issues.length){
-      el.innerHTML='<div class="empty"><p>Nenhum conflito de horário encontrado entre os alunos ativos. &#9989;</p></div>';
-    }else{
-      el.innerHTML='';
-      issues.forEach(function(it){
-        var row=document.createElement('div');
-        row.className='ab red';
-        row.style.cursor='pointer';
-        row.innerHTML='<div><b>'+it.name+'</b><br>'+it.msg+'</div>';
-        row.addEventListener('click',(function(sid){return function(){closeM('health-modal');openStu(sid);};})(it.id));
-        el.appendChild(row);
-      });
+    el.innerHTML='';
+    function renderSection(title,issues,cls){
+      var sec=document.createElement('div');
+      sec.style.marginBottom='14px';
+      var head=document.createElement('div');
+      head.style.cssText='font-size:12px;font-weight:700;color:var(--inks);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;';
+      head.innerHTML=title+' ('+issues.length+')';
+      sec.appendChild(head);
+      if(!issues.length){
+        var ok=document.createElement('div');
+        ok.className='empty';
+        ok.style.padding='10px';
+        ok.innerHTML='<p style="margin:0;">Tudo certo por aqui. &#9989;</p>';
+        sec.appendChild(ok);
+      }else{
+        issues.forEach(function(it){
+          var row=document.createElement('div');
+          row.className='ab '+cls;
+          row.style.cursor='pointer';
+          row.style.marginBottom='6px';
+          row.innerHTML='<div><b>'+it.name+'</b><br>'+it.msg+'</div>';
+          row.addEventListener('click',(function(sid){return function(){closeM('health-modal');openStu(sid);};})(it.id));
+          sec.appendChild(row);
+        });
+      }
+      el.appendChild(sec);
     }
+    renderSection('&#128203; Cadastro e valores',dataIssues,'red');
+    renderSection('&#9200; Conflitos de horário',conflictIssues,'red');
     document.getElementById('health-modal').classList.add('open');
-  }catch(e){
-    toast('Erro ao verificar: '+e.message);
-  }
-}
-function openHealthCheckModal(){
-  try{
-    document.getElementById('health-modal-title').innerHTML='&#128269; Verificação de dados';
-    var issues=runDataHealthCheck();
-    var el=document.getElementById('health-list');
-    if(!el){toast('Erro: elemento da lista não encontrado');return;}
-    if(!issues.length){
-      el.innerHTML='<div class="empty"><p>Nenhum problema encontrado nos dados dos alunos. &#9989;</p></div>';
-    }else{
-      el.innerHTML='';
-      issues.forEach(function(it){
-        var row=document.createElement('div');
-        row.className='ab red';
-        row.style.cursor='pointer';
-        row.innerHTML='<div><b>'+it.name+'</b><br>'+it.msg+'</div>';
-        row.addEventListener('click',(function(sid){return function(){closeM('health-modal');openStu(sid);};})(it.id));
-        el.appendChild(row);
-      });
-    }
-    var modalEl=document.getElementById('health-modal');
-    if(!modalEl){toast('Erro: modal não encontrado');return;}
-    modalEl.classList.add('open');
   }catch(e){
     toast('Erro ao verificar: '+e.message);
   }
@@ -7058,8 +7054,7 @@ function attachEventListeners(){
   document.getElementById('pwd-cfm-eye').addEventListener('click',function(){togglePwd('pwd-cfm',this);});
   document.getElementById('pwd-change-btn').addEventListener('click',changePwd);
   document.getElementById('dark-btn').addEventListener('click',toggleDark);
-  document.getElementById('health-check-btn').addEventListener('click',openHealthCheckModal);
-  document.getElementById('conflict-check-btn').addEventListener('click',openConflictCheckModal);
+  document.getElementById('full-diagnostic-btn').addEventListener('click',openFullDiagnosticModal);
   document.getElementById('ln-cancel-btn').addEventListener('click',function(){closeM('lesson-note-modal');});
   document.getElementById('ln-save-btn').addEventListener('click',saveLessonNote);
   document.getElementById('reset-open-btn').addEventListener('click',openResetModal);
