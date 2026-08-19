@@ -373,6 +373,11 @@ body.density-compact .nav-item{padding:7px 10px;}
         <div class="filter-btn active" data-f="active" title="Mostrar só alunos com aulas em andamento">Ativos</div>
         <div class="filter-btn" data-f="inactive" title="Mostrar só ex-alunos">Inativos</div>
       </div>
+      <div class="filter-bar" id="stud-type-filter" style="margin-top:6px;">
+        <div class="filter-btn active" data-t="all" title="Mostrar particulares e alunos de escola">Todos os tipos</div>
+        <div class="filter-btn" data-t="private" title="Mostrar só alunos particulares">Particular</div>
+        <div class="filter-btn" data-t="school" title="Mostrar só alunos de escola">Escola</div>
+      </div>
       <div class="search-wrap"><span class="search-ico">&#128269;</span><input type="text" id="stud-search" placeholder="Buscar aluno..." title="Busca por nome ou contato"></div>
       <div class="card" id="students-list"></div>
     </div>
@@ -932,6 +937,7 @@ var hasUnsavedChangesToday=false;
 var curSid=null;
 var attMO=0;
 var studF='active';
+var studType='all';
 var finMO=0;
 var calMO=0;
 var calViewMode='month';
@@ -1781,9 +1787,12 @@ function goPage(page,sub){
   else if(page==='daily'){renderDaily();}
   else if(page==='students'){
     studF=sub||'active';
+    studType='all';
     renderStudents();
     var fbtns=document.querySelectorAll('#stud-filter .filter-btn');
     for(var k=0;k<fbtns.length;k++){fbtns[k].classList.toggle('active',fbtns[k].getAttribute('data-f')===studF);}
+    var tbtns2=document.querySelectorAll('#stud-type-filter .filter-btn');
+    for(var k2=0;k2<tbtns2.length;k2++){tbtns2[k2].classList.toggle('active',tbtns2[k2].getAttribute('data-t')==='all');}
   }
   else if(page==='finance'){renderFinance(sub||null);}
   else if(page==='history'){renderHistory();}
@@ -3725,12 +3734,20 @@ function setStudF(f){
   for(var i=0;i<btns.length;i++){btns[i].classList.toggle('active',btns[i].getAttribute('data-f')===f);}
   renderStudents();
 }
+function setStudType(t){
+  studType=t;
+  var btns=document.querySelectorAll('#stud-type-filter .filter-btn');
+  for(var i=0;i<btns.length;i++){btns[i].classList.toggle('active',btns[i].getAttribute('data-t')===t);}
+  renderStudents();
+}
 function renderStudents(){
   var qEl=document.getElementById('stud-search');
   var q=(qEl&&qEl.value||'').toLowerCase();
   var list=data.students;
   if(studF==='active'){list=list.filter(isActive);}
   else if(studF==='inactive'){list=list.filter(function(s){return s.status==='inactive';});}
+  if(studType==='private'){list=list.filter(function(s){return(s.studentType||'private')==='private';});}
+  else if(studType==='school'){list=list.filter(function(s){return s.studentType==='school';});}
   if(q){
     list=list.filter(function(s){return s.name.toLowerCase().indexOf(q)>=0||(s.contact||'').indexOf(q)>=0;});
   }
@@ -6935,6 +6952,10 @@ function attachEventListeners(){
   var fbtns=document.querySelectorAll('#stud-filter .filter-btn');
   for(var fi=0;fi<fbtns.length;fi++){
     fbtns[fi].addEventListener('click',(function(btn){return function(){setStudF(btn.getAttribute('data-f'));};})(fbtns[fi]));
+  }
+  var tbtns=document.querySelectorAll('#stud-type-filter .filter-btn');
+  for(var ti=0;ti<tbtns.length;ti++){
+    tbtns[ti].addEventListener('click',(function(btn){return function(){setStudType(btn.getAttribute('data-t'));};})(tbtns[ti]));
   }
   document.getElementById('stud-search').addEventListener('input',renderStudents);
 
