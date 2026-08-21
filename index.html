@@ -6575,6 +6575,9 @@ function renderDaily(){
   doneMKsOnDate(dailyDt).forEach(function(d){
     if(isActive(d.student)){dayEntries.push({student:d.student,time:d.time,type:'makeup-done',absDate:d.absDate});}
   });
+  pendMKs().filter(function(p){return p.schedDate===dailyDt;}).forEach(function(p){
+    if(isActive(p.student)){dayEntries.push({student:p.student,time:p.schedTime||'',type:'makeup',absDate:p.absDate});}
+  });
   (data.schedExtras||[]).filter(function(e){return e.date===dailyDt;}).forEach(function(e){
     var s=exStudentObj(e);
     if(s&&(!s.id||isActive(s))){dayEntries.push({student:s,time:e.time,type:'extra',kind:e.kind||'extra',extraId:e.id,done:e.done,price:e.price,note:e.note,duration:e.duration});}
@@ -6594,6 +6597,9 @@ function renderDaily(){
       if(en.type==='makeup-done'){
         tagHtml=' <span class="tag ok" style="font-size:10px;">Reposição dada</span>';
         rm2Text='Repôs a falta de '+fdd(en.absDate)+(en.time?' · horário previsto '+en.time:'');
+      }else if(en.type==='makeup'){
+        tagHtml=' <span class="tag gold" style="font-size:10px;">Reposição</span>';
+        rm2Text=(en.time||'—')+' · repondo falta de '+fdd(en.absDate);
       }else if(en.type==='extra'){
         var exLbl=exKindLabel(en.kind);
         tagHtml=en.done?(' <span class="tag ok" style="font-size:10px;">'+exLbl+' dada</span>'):(' <span class="tag gold" style="font-size:10px;">'+exLbl+' agendada</span>');
@@ -6621,6 +6627,25 @@ function renderDaily(){
         undoMkBtn.title='Volta a reposição para pendente';
         undoMkBtn.addEventListener('click',(function(sid,abs){return function(){undoMkDone(sid,abs,'renderDaily');};})(s.id,en.absDate));
         holder.appendChild(undoMkBtn);
+      }else if(en.type==='makeup'){
+        var doneMkBtn=document.createElement('button');
+        doneMkBtn.className='btn ghost sm';
+        doneMkBtn.textContent='Feita';
+        doneMkBtn.title='Marcar que a reposição já foi dada';
+        doneMkBtn.addEventListener('click',(function(sid,abs){return function(){openDoneMk(sid,abs,'renderDaily');};})(s.id,en.absDate));
+        holder.appendChild(doneMkBtn);
+        var reschedMkBtn=document.createElement('button');
+        reschedMkBtn.className='btn ghost sm';
+        reschedMkBtn.textContent='Reagendar';
+        reschedMkBtn.title='Trocar a data/horário da reposição';
+        reschedMkBtn.addEventListener('click',(function(sid,abs){return function(){openSchedMk(sid,abs);};})(s.id,en.absDate));
+        holder.appendChild(reschedMkBtn);
+        var noMkBtn=document.createElement('button');
+        noMkBtn.className='btn ghost sm';
+        noMkBtn.textContent='Não repor';
+        noMkBtn.title='Marca que esta falta não terá reposição';
+        noMkBtn.addEventListener('click',(function(sid,abs){return function(){cancelMakeup(sid,abs,'renderDaily');};})(s.id,en.absDate));
+        holder.appendChild(noMkBtn);
       }else if(en.type==='extra'){
         if(!en.done){
           var doneBtn2=document.createElement('button');
@@ -6650,7 +6675,7 @@ function renderDaily(){
       }
     });
   }
-  var pm=pendMKs();
+  var pm=pendMKs().filter(function(p){return p.schedDate!==dailyDt;});
   var pmel=document.getElementById('daily-makeups');
   applyDailyMkCollapse();
   if(!pm.length){
