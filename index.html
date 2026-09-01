@@ -661,6 +661,7 @@ body.density-compact .nav-item{padding:7px 10px;}
   <div class="g2"><div class="field"><label>Duração (min)</label><input type="number" id="sm-dur" value="60" min="15" step="15"></div><div class="field"><label>Valor por aula (R$)</label><input type="number" id="sm-price" value="80" min="0" step="5"></div></div>
   <div class="g2"><div class="field"><label>Cobrança</label><select id="sm-bill"><option value="per_lesson">Por aula</option><option value="monthly">Mensalidade fixa</option></select></div><div class="field" id="sm-mf-f" style="display:none;"><label>Mensalidade (R$)</label><input type="number" id="sm-mfee" value="0" min="0" step="10"></div></div>
   <div class="g2"><div class="field"><label>Vencimento (dia)</label><input type="number" id="sm-due" value="10" min="1" max="28"></div><div class="field"><label>Contato / WhatsApp</label><input type="text" id="sm-contact" placeholder="11912345678 (só números)"></div></div>
+  <div class="field"><label>E-mail</label><input type="email" id="sm-email" placeholder="aluno@email.com"></div>
   <div class="field"><label>Quando a mensalidade é paga</label><select id="sm-billcycle"><option value="same">No mesmo mês das aulas (padrão)</option><option value="arrears">No mês seguinte, depois das aulas (comum em escolas)</option></select><p style="font-size:11px;color:var(--inks);margin:4px 0 0;">Se marcar "mês seguinte", o valor das aulas de um mês só passa a contar como previsto/pendente a partir do dia de vencimento do mês <b>depois</b>.</p></div>
   <div class="mact"><button class="btn ghost sm" id="sm-cancel-btn">Cancelar</button><button class="btn" id="sm-save-btn">Salvar</button></div>
 </div></div>
@@ -2067,7 +2068,7 @@ function onGlobalSearch(){
   var el=document.getElementById('global-search-results');
   if(q.length<2){el.classList.remove('open');el.innerHTML='';return;}
   var studentMatches=data.students.filter(function(s){
-    return s.name.toLowerCase().indexOf(q)>=0||(s.contact||'').indexOf(q)>=0||(s.schoolName||'').toLowerCase().indexOf(q)>=0;
+    return s.name.toLowerCase().indexOf(q)>=0||(s.contact||'').indexOf(q)>=0||(s.schoolName||'').toLowerCase().indexOf(q)>=0||(s.email||'').toLowerCase().indexOf(q)>=0;
   });
   var noteMatches=data.students.filter(function(s){
     return (s.notes||'').toLowerCase().indexOf(q)>=0&&studentMatches.indexOf(s)<0;
@@ -3749,7 +3750,7 @@ function renderStudents(){
   if(studType==='private'){list=list.filter(function(s){return(s.studentType||'private')==='private';});}
   else if(studType==='school'){list=list.filter(function(s){return s.studentType==='school';});}
   if(q){
-    list=list.filter(function(s){return s.name.toLowerCase().indexOf(q)>=0||(s.contact||'').indexOf(q)>=0;});
+    list=list.filter(function(s){return s.name.toLowerCase().indexOf(q)>=0||(s.contact||'').indexOf(q)>=0||(s.email||'').toLowerCase().indexOf(q)>=0;});
   }
   document.getElementById('stud-title').textContent=studF==='active'?'Alunos ativos':studF==='inactive'?'Alunos inativos':'Alunos';
   document.getElementById('stud-sub').textContent='';
@@ -3863,6 +3864,7 @@ function openStuModal(sid,prefillDay,prefillTime){
     document.getElementById('sm-due').value=s.dueDay||10;
     document.getElementById('sm-billcycle').value=s.billingCycle||'same';
     document.getElementById('sm-contact').value=s.contact||'';
+    document.getElementById('sm-email').value=s.email||'';
     selDays=s.slots.map(function(sl){return Number(sl.day);});
     s.slots.forEach(function(sl){slotTimes[sl.day]=sl.time;});
     origSlotsForEdit=JSON.parse(JSON.stringify(s.slots));
@@ -3874,7 +3876,7 @@ function openStuModal(sid,prefillDay,prefillTime){
     document.getElementById('sm-2nd-dur').value=(s.secondLesson&&s.secondLesson.duration)||60;
     document.getElementById('sm-2nd-effmonth').value=(s.secondLesson&&s.secondLesson.effectiveMonth)||(function(){var t0=new Date();return t0.getFullYear()+'-'+pad(t0.getMonth()+1);})();
   }else{
-    var clearIds=['sm-name','sm-bday','sm-return','sm-contact','sm-school','sm-address','sm-neighborhood'];
+    var clearIds=['sm-name','sm-bday','sm-return','sm-contact','sm-email','sm-school','sm-address','sm-neighborhood'];
     clearIds.forEach(function(id){document.getElementById(id).value='';});
     document.getElementById('sm-status').value='active';
     document.getElementById('sm-inactive-month').value='';
@@ -4018,6 +4020,7 @@ function saveStu(){
     dueDay:Math.min(28,Math.max(1,Number(document.getElementById('sm-due').value)||10)),
     billingCycle:document.getElementById('sm-billcycle').value||'same',
     contact:document.getElementById('sm-contact').value.trim(),
+    email:document.getElementById('sm-email').value.trim(),
     secondLesson:{
       enabled:document.getElementById('sm-2nd-enabled').checked,
       time:document.getElementById('sm-2nd-time').value||'',
@@ -4102,7 +4105,7 @@ function openStu(id){
   var fl=freqLabels[s.frequency]||'Semanal';
   var typeStr=s.studentType==='school'?('Escola'+(s.schoolName?' ('+s.schoolName+')':'')):'Particular';
   var slotsStr=s.slots.map(function(sl){return DAYF[sl.day]+' '+sl.time;}).join(', ')||'sem horário fixo';
-  document.getElementById('det-meta').textContent=fl+' · '+slotsStr+' · '+s.duration+'min · '+priceLabel(s)+' · venc. dia '+s.dueDay+(s.billingCycle==='arrears'?' (mês seguinte)':'')+(s.contact?' · '+s.contact:'')+' · '+typeStr+' · '+(s.modality==='online'?'Online':'Presencial')+(s.startDate?' · desde '+fdd(s.startDate):'')+(s.trackingStartDate?' · contabiliza desde '+fdd(s.trackingStartDate):'')+(s.firstMonthProrated?(' · 1º mês proporcional: '+fm(s.firstMonthProrated.amount)+' ('+s.firstMonthProrated.actualCount+'/'+s.firstMonthProrated.fullCount+' aulas)'):'');
+  document.getElementById('det-meta').textContent=fl+' · '+slotsStr+' · '+s.duration+'min · '+priceLabel(s)+' · venc. dia '+s.dueDay+(s.billingCycle==='arrears'?' (mês seguinte)':'')+(s.contact?' · '+s.contact:'')+(s.email?' · '+s.email:'')+' · '+typeStr+' · '+(s.modality==='online'?'Online':'Presencial')+(s.startDate?' · desde '+fdd(s.startDate):'')+(s.trackingStartDate?' · contabiliza desde '+fdd(s.trackingStartDate):'')+(s.firstMonthProrated?(' · 1º mês proporcional: '+fm(s.firstMonthProrated.amount)+' ('+s.firstMonthProrated.actualCount+'/'+s.firstMonthProrated.fullCount+' aulas)'):'');
   var addrEl=document.getElementById('det-address');
   var addrParts=[s.address,s.neighborhood].filter(function(x){return x;});
   if(addrParts.length){
