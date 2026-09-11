@@ -1514,6 +1514,16 @@ function pendAmt(s,mk){
 function allPayAmt(s,mk){
   return s.payments.filter(function(pm){return pm.month===mk;}).reduce(function(a,pm){return a+Number(pm.amount);},0)+extraSumForMonth(s,mk,true);
 }
+function recvAmtByDate(s,mk){
+  var sum=s.payments.filter(function(pm){return (pm.date||'').slice(0,7)===mk;}).reduce(function(a,pm){return a+Number(pm.amount);},0);
+  var priceForMonth=getValForMonth(s,mk,'price');
+  (data.schedExtras||[]).filter(function(e){
+    return e.studentId===s.id&&e.paid&&((e.paidDate||e.date)||'').slice(0,7)===mk;
+  }).forEach(function(e){
+    sum+=Number(e.price!=null?e.price:priceForMonth);
+  });
+  return sum;
+}
 
 function toggleDark(){cfg.darkMode=!cfg.darkMode;saveCfg();applyDark();}
 function applyDark(){
@@ -2036,9 +2046,9 @@ function renderGoal(t,cur,active){
   var goalP=cfg.monthlyGoalPrivate||0;
   var goalS=cfg.monthlyGoalSchool||0;
   if(!goal&&!goalP&&!goalS){gc.innerHTML='';return;}
-  var recv=data.students.reduce(function(s,st){return s+allPayAmt(st,cur);},0);
-  var recvP=data.students.filter(function(s){return(s.studentType||'private')==='private';}).reduce(function(s,st){return s+allPayAmt(st,cur);},0);
-  var recvS=data.students.filter(function(s){return s.studentType==='school';}).reduce(function(s,st){return s+allPayAmt(st,cur);},0);
+  var recv=data.students.reduce(function(s,st){return s+recvAmtByDate(st,cur);},0);
+  var recvP=data.students.filter(function(s){return(s.studentType||'private')==='private';}).reduce(function(s,st){return s+recvAmtByDate(st,cur);},0);
+  var recvS=data.students.filter(function(s){return s.studentType==='school';}).reduce(function(s,st){return s+recvAmtByDate(st,cur);},0);
   function barHtml(label,g,r){
     var pct=Math.min(100,Math.round(r/g*100));
     var bc=pct<50?'danger':pct<100?'warn':'';
@@ -5129,11 +5139,11 @@ function genReceipt(){
   var viewMk=now.getFullYear()+'-'+pad(now.getMonth()+1);
   var mk=effectiveLessonMk(s,viewMk);
   var e=expAmt(s,mk);
-  var p=regPayAmt(s,viewMk);
+  var p=recvAmtByDate(s,viewMk);
   var pendReal=pendAmt(s,mk);
-  var extraPays=s.payments.filter(function(pm){return pm.month===viewMk&&pm.type==='extra';});
+  var extraPays=s.payments.filter(function(pm){return (pm.date||'').slice(0,7)===viewMk&&pm.type==='extra';});
   var extraPaysSum=extraPays.reduce(function(a,pm){return a+Number(pm.amount);},0);
-  var lpArr=s.payments.filter(function(pm){return pm.month===viewMk;}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+  var lpArr=s.payments.filter(function(pm){return (pm.date||'').slice(0,7)===viewMk;}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   var lp=lpArr[0];
   var freqLabels={weekly:'Semanal',biweekly:'Quinzenal',monthly:'Mensal',single:'Avulsa'};
   var slotsStr=s.slots.map(function(sl){return DAYF[sl.day]+' '+sl.time;}).join(', ')||'sem horário fixo';
@@ -5182,7 +5192,7 @@ function genTaxReportPDF(){
     var grandTotal=0;
     data.students.filter(function(s){return scope==='all'||(s.studentType||'private')==='private';}).forEach(function(s){
       var total=0;
-      mks.forEach(function(mk){total+=allPayAmt(s,mk);});
+      mks.forEach(function(mk){total+=recvAmtByDate(s,mk);});
       if(total>0.01){rows.push({name:s.name,total:total});grandTotal+=total;}
     });
     rows.sort(function(a,b){return b.total-a.total;});
@@ -5506,8 +5516,8 @@ function aggForMonths(s,mks){
   mks.forEach(function(viewMk){
     var mk=effectiveLessonMk(s,viewMk);
     e+=expAmt(s,mk);
-    recvAll+=allPayAmt(s,viewMk);
-    recvReg+=regPayAmt(s,viewMk);
+    recvAll+=recvAmtByDate(s,viewMk);
+    recvReg+=recvAmtByDate(s,viewMk);
     pend+=pendAmt(s,mk);
     owed+=owedAmt(s,mk);
   });
@@ -5571,10 +5581,10 @@ function openFinMetricDetail(kind){
     desc.textContent='Todos os pagamentos recebidos no período, por data — inclui mensalidade/aula regular e aulas extras/avulsas pagas.';
     var payments=[];
     students.forEach(function(s){
-      s.payments.filter(function(pm){return finLastMks.indexOf(pm.month)>=0;}).forEach(function(pm){
+      s.payments.filter(function(pm){return finLastMks.indexOf((pm.date||'').slice(0,7))>=0;}).forEach(function(pm){
         payments.push({name:s.name,date:pm.date,amount:Number(pm.amount),month:pm.month,note:pm.type==='extra'?('pagamento extra'+(pm.desc?' — '+pm.desc:'')):pm.note,type:pm.type,stype:s.studentType});
       });
-      (data.schedExtras||[]).filter(function(e){return e.studentId===s.id&&e.paid&&finLastMks.indexOf(extraDueMonth(s,e.date))>=0;}).forEach(function(e){
+      (data.schedExtras||[]).filter(function(e){return e.studentId===s.id&&e.paid&&finLastMks.indexOf(((e.paidDate||e.date)||'').slice(0,7))>=0;}).forEach(function(e){
         payments.push({name:s.name,date:e.paidDate||e.date,amount:Number(e.price!=null?e.price:s.price),month:extraDueMonth(s,e.date),note:'aula extra/avulsa',type:'extra',stype:s.studentType});
       });
     });
@@ -6088,7 +6098,7 @@ function renderFinTrendChart(){
 function monthAgg(mk){
   var r=0,e=0,pend=0;
   data.students.forEach(function(s){
-    r+=allPayAmt(s,mk);
+    r+=recvAmtByDate(s,mk);
     e+=expAmt(s,effectiveLessonMk(s,mk));
     pend+=pendAmt(s,effectiveLessonMk(s,mk));
   });
@@ -6157,7 +6167,7 @@ function renderFH(){
   }
   var curMk=now.getFullYear()+'-'+pad(now.getMonth()+1);
   var curRecv=0;
-  data.students.forEach(function(s){curRecv+=allPayAmt(s,curMk);});
+  data.students.forEach(function(s){curRecv+=recvAmtByDate(s,curMk);});
   var metricsHtml='<div class="metric teal" id="fh-recv"><div class="lbl">Total recebido</div><div class="val fin-num">'+fm(tr)+'</div></div>';
   metricsHtml+='<div class="metric terra" id="fh-pend"><div class="lbl">Total pendente</div><div class="val fin-num">'+fm(tpend)+'</div></div>';
   metricsHtml+='<div class="metric gold" id="fh-exp"><div class="lbl">Total previsto</div><div class="val fin-num">'+fm(te)+'</div></div>';
@@ -6203,7 +6213,7 @@ function openHistDetail(kind){
   data.students.forEach(function(s){
     var amt=0;
     mks.forEach(function(mk){
-      if(kind==='recv'){amt+=allPayAmt(s,mk);}
+      if(kind==='recv'){amt+=recvAmtByDate(s,mk);}
       else if(kind==='exp'){amt+=expAmt(s,effectiveLessonMk(s,mk));}
       else if(kind==='pend'){amt+=pendAmt(s,effectiveLessonMk(s,mk));}
     });
