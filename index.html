@@ -5126,13 +5126,14 @@ function renderPHList(){
 function genReceipt(){
   var s=gS(curSid);
   var now=new Date();
-  var mk=effectiveLessonMk(s,now.getFullYear()+'-'+pad(now.getMonth()+1));
+  var viewMk=now.getFullYear()+'-'+pad(now.getMonth()+1);
+  var mk=effectiveLessonMk(s,viewMk);
   var e=expAmt(s,mk);
-  var p=regPayAmt(s,mk);
+  var p=regPayAmt(s,viewMk);
   var pendReal=pendAmt(s,mk);
-  var extraPays=s.payments.filter(function(pm){return pm.month===mk&&pm.type==='extra';});
+  var extraPays=s.payments.filter(function(pm){return pm.month===viewMk&&pm.type==='extra';});
   var extraPaysSum=extraPays.reduce(function(a,pm){return a+Number(pm.amount);},0);
-  var lpArr=s.payments.filter(function(pm){return pm.month===mk;}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+  var lpArr=s.payments.filter(function(pm){return pm.month===viewMk;}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   var lp=lpArr[0];
   var freqLabels={weekly:'Semanal',biweekly:'Quinzenal',monthly:'Mensal',single:'Avulsa'};
   var slotsStr=s.slots.map(function(sl){return DAYF[sl.day]+' '+sl.time;}).join(', ')||'sem horário fixo';
@@ -5505,8 +5506,8 @@ function aggForMonths(s,mks){
   mks.forEach(function(viewMk){
     var mk=effectiveLessonMk(s,viewMk);
     e+=expAmt(s,mk);
-    recvAll+=allPayAmt(s,mk);
-    recvReg+=regPayAmt(s,mk);
+    recvAll+=allPayAmt(s,viewMk);
+    recvReg+=regPayAmt(s,viewMk);
     pend+=pendAmt(s,mk);
     owed+=owedAmt(s,mk);
   });
