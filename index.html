@@ -3851,6 +3851,7 @@ function openStuModal(sid,prefillDay,prefillTime){
   document.getElementById('sm-title').textContent=sid?'Editar aluno':'Novo aluno';
   document.getElementById('sm-id').value=sid||'';
   slotTimes={};
+  document.getElementById('slot-list').innerHTML='';
   if(sid){
     var s=gS(sid);
     document.getElementById('sm-name').value=s.name;
