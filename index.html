@@ -4001,7 +4001,7 @@ function saveStu(){
   var id=document.getElementById('sm-id').value;
   var sl2enabled=document.getElementById('sm-2nd-enabled').checked;
   var sl2time=document.getElementById('sm-2nd-time').value||'';
-  if(freq!=='single'&&slots.length){
+  if(status==='active'&&freq!=='single'&&slots.length){
     var conflict=findScheduleConflict(id,slots,sl2enabled?sl2time:null);
     if(conflict){
       if(!confirm('Aviso de conflito de horário: '+conflict+'. Deseja salvar mesmo assim?')){return;}
@@ -5626,7 +5626,7 @@ function openFinMetricDetail(kind){
     title.textContent='Pendente — '+finLastBaseLbl;
     desc.textContent='Alunos com valores em aberto (já vencidos e não pagos) no período.';
     var pendRows=[];
-    students.forEach(function(s){
+    students.filter(isActive).forEach(function(s){
       var tot=0,oldestDue=null;
       finLastMks.forEach(function(mk){
         var lessonMk=effectiveLessonMk(s,mk);
@@ -5703,13 +5703,9 @@ function renderFinance(sub){
   var rows=[];
   var tod=new Date();
   tod.setHours(0,0,0,0);
-  data.students.filter(typeMatch).forEach(function(s){
-    var agg=aggForMonths(s,mks);
-    recv+=agg.recv;pend+=agg.pend;
-  });
   active.forEach(function(s){
     var agg=aggForMonths(s,mks);
-    exp+=agg.exp;
+    recv+=agg.recv;pend+=agg.pend;exp+=agg.exp;
     var status;
     if(isMonthly){
       var dd=dueDateFor(s,effectiveLessonMk(s,mks[0]));
