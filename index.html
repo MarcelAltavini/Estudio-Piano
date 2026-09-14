@@ -1894,19 +1894,19 @@ function renderDashboard(){
   });
   (data.schedExtras||[]).filter(function(e){return !e.done&&e.date===refKey;}).forEach(function(e){
     var s=exStudentObj(e);
-    if(s&&(!s.id||isActive(s))&&(!s.id||!entries.some(function(en){return en.student.id===s.id;}))){
+    if(s&&(!s.id||isActive(s))){
       entries.push({student:s,time:e.time,type:'extra',kind:e.kind||'extra',price:e.price,duration:e.duration,extraId:e.id,done:e.done});
     }
   });
   active.forEach(function(s){
     var rec0=s.attendance[refKey];
-    if(rec0&&rec0.status==='extra'&&!entries.some(function(en){return en.student.id===s.id;})){
+    if(rec0&&rec0.status==='extra'&&!entries.some(function(en){return en.type==='extra'&&en.student.id===s.id;})){
       entries.push({student:s,time:occTime(s,ref),type:'extra',kind:rec0.extraKind||'extra',price:rec0.extraPrice,done:true});
     }
   });
   (data.schedExtras||[]).filter(function(e){return e.done&&e.date===refKey;}).forEach(function(e){
     var s=exStudentObj(e);
-    if(s&&(!s.id||isActive(s))&&(!s.id||!entries.some(function(en){return en.student.id===s.id;}))){
+    if(s&&(!s.id||isActive(s))){
       entries.push({student:s,time:e.time,type:'extra',kind:e.kind||'extra',price:e.price,duration:e.duration,extraId:e.id,done:e.done});
     }
   });
