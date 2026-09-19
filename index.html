@@ -1170,8 +1170,12 @@ function getDayEvents(dateKey){
   var dt=pd(dateKey);
   var out=[];
   data.students.filter(isActive).forEach(function(s){
-    if(occursOn(s,dt)){out.push({name:s.name+' (aula fixa)',time:occTime(s,dt),duration:s.duration||60,key:'occ_'+s.id+'_'+dateKey});}
-    if(occursOn2(s,dt)){out.push({name:s.name+' (2ª aula)',time:s.secondLesson.time||'',duration:s.secondLesson.duration||s.duration||60,key:'occ2_'+s.id+'_'+dateKey});}
+    var rec1=s.attendance&&s.attendance[dateKey];
+    var off1=rec1&&(rec1.status==='absent_student'||rec1.status==='absent_teacher'||rec1.status==='absent'||rec1.status==='canceled');
+    if(occursOn(s,dt)&&!off1){out.push({name:s.name+' (aula fixa)',time:occTime(s,dt),duration:s.duration||60,key:'occ_'+s.id+'_'+dateKey});}
+    var rec2=s.attendance2&&s.attendance2[dateKey];
+    var off2=rec2&&(rec2.status==='absent_student'||rec2.status==='absent_teacher'||rec2.status==='absent'||rec2.status==='canceled');
+    if(occursOn2(s,dt)&&!off2){out.push({name:s.name+' (2ª aula)',time:s.secondLesson.time||'',duration:s.secondLesson.duration||s.duration||60,key:'occ2_'+s.id+'_'+dateKey});}
   });
   (data.schedExtras||[]).filter(function(e){return e.date===dateKey;}).forEach(function(e){
     var es=exStudentObj(e);
