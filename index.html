@@ -4566,7 +4566,8 @@ function onPayTypeCh(){
 function openPayModal(pid){
   var s=gS(curSid);
   var t=new Date();
-  var mk=t.getFullYear()+'-'+pad(t.getMonth()+1);
+  var viewMk=t.getFullYear()+'-'+pad(t.getMonth()+1);
+  var mk=effectiveLessonMk(s,viewMk);
   document.getElementById('pay-id').value=pid||'';
   if(pid){
     var p=s.payments.find(function(x){return x.id===pid;});
